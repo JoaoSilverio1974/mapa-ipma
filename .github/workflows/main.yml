@@ -2,8 +2,12 @@ name: Atualizar Mapas IPMA - Portugal Completo
 
 on:
   schedule:
-    - cron: '0 3 * * *' # Corre todos os dias às 3h
+    - cron: '0 7 * * *'
   workflow_dispatch:
+
+# Esta linha resolve o aviso (Warning) do Node.js 20
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   update-images:
@@ -22,7 +26,7 @@ jobs:
           AMANHA=$(date -d "+1 day" +%Y-%m-%d)
           DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
           
-          # O link mágico que pede o país inteiro em proporção 1:2 (500x1000 píxeis)
+          # O link do mapa
           URL="https://cs2.ipma.pt/azstats/wms?map=rcm-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
 
           # Faz o download das 3 imagens integrais
@@ -34,6 +38,14 @@ jobs:
         run: |
           git config --global user.name 'GitHub Action Bot'
           git config --global user.email 'action@github.com'
-          git add *.png
-          git commit -m "Atualizar mapas completos do IPMA" || echo "Sem alterações"
-          git push
+          
+          # Adiciona as imagens preparadas
+          git add .
+          
+          # Verifica se os mapas mudaram em relação aos que já estavam no GitHub
+          if git diff-index --quiet HEAD; then
+            echo "Nenhuma alteração nos mapas hoje. O IPMA ainda não atualizou."
+          else
+            git commit -m "Atualizar mapas completos do IPMA"
+            git push
+          fi
