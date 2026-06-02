@@ -2,7 +2,7 @@ name: Atualizar Mapas IPMA - Portugal Completo
 
 on:
   schedule:
-    - cron: '0 7 * * *'
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 # Esta linha resolve o aviso (Warning) do Node.js 20
