@@ -1,0 +1,59 @@
+name: Atualizar Mapas IPMA - 3 Dias
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # Corre todos os dias às 7h da manhã (UTC)
+  workflow_dispatch:
+
+jobs:
+  update-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Calcular datas dinâmicas e sacar mosaicos (Tiles)
+        run: |
+          # 1. Obter as datas de forma dinâmica (formato YYYY-MM-DD)
+          HOJE=$(date +%Y-%m-%d)
+          AMANHA=$(date -d "+1 day" +%Y-%m-%d)
+          DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
+          
+          echo "A atualizar previsões para: $HOJE, $AMANHA e $DEPOIS"
+
+          # 2. O link base do IPMA
+          BASE_URL="https://cs2.ipma.pt/azstats/wms?map=rcm-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&width=256&height=256&srs=EPSG%3A3857"
+
+          # 3. Lista de coordenadas (bbox) dos 8 pedaços do mapa que partilhaste
+          BBOXES=(
+            "-939258.203568246,5165920.119625352,-860986.6866042254,5244191.636589374"
+            "-1017529.7205322665,5087648.602661333,-939258.203568246,5165920.119625352"
+            "-1095801.2374962869,5009377.085697314,-939258.203568246,5165920.119625352"
+            "-939258.203568246,5009377.085697314,-782715.1696402049,5165920.119625352"
+            "-1095801.2374962869,5165920.119625352,-939258.203568246,5322463.153553395"
+            "-939258.203568246,5165920.119625352,-782715.1696402049,5322463.153553395"
+            "-939258.203568246,5087648.602661333,-860986.6866042254,5165920.119625352"
+            "-1017529.7205322665,5165920.119625352,-939258.203568246,5244191.636589374"
+          )
+
+          # 4. Fazer o download automatizado num Ciclo Rápido
+          i=1
+          for bbox in "${BBOXES[@]}"; do
+            # Descarrega as imagens, injetando a data correta no link do IPMA
+            curl -s -o hoje_parte${i}.png "${BASE_URL}&bbox=${bbox}&time=${HOJE}T00%3A00%3A00Z"
+            curl -s -o amanha_parte${i}.png "${BASE_URL}&bbox=${bbox}&time=${AMANHA}T00%3A00%3A00Z"
+            curl -s -o depois_parte${i}.png "${BASE_URL}&bbox=${bbox}&time=${DEPOIS}T00%3A00%3A00Z"
+            
+            ((i++))
+          done
+
+      - name: Guardar imagens e enviar para o GitHub
+        run: |
+          git config --global user.name 'GitHub Action Bot'
+          git config --global user.email 'action@github.com'
+          git add *.png
+          git commit -m "Atualizar mapas dinâmicos diários" || echo "Sem alterações hoje"
+          git push
