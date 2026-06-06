@@ -26,10 +26,11 @@ jobs:
           AMANHA=$(date -d "+1 day" +%Y-%m-%d)
           DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
           
-          # O link do mapa
-          URL="https://cs2.ipma.pt/azstats/wms?map=rcm-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
+          # URL INTEGRAL CORRIGIDO: Atualizado com o novo parâmetro do IPMA (rcm_2026)
+          # Mantém as coordenadas corretas de Portugal Continental e o tamanho proporcional (500x1000)
+          URL="https://cs2.ipma.pt/azstats/wms?map=rcm_2026-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm_2026-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
 
-          # Faz o download das 3 imagens integrais
+          # Faz o download das 3 imagens integrais usando o novo URL
           curl -s -o portugal_hoje.png "${URL}&time=${HOJE}T00%3A00%3A00Z"
           curl -s -o portugal_amanha.png "${URL}&time=${AMANHA}T00%3A00%3A00Z"
           curl -s -o portugal_depois.png "${URL}&time=${DEPOIS}T00%3A00%3A00Z"
@@ -42,7 +43,7 @@ jobs:
           # Adiciona as imagens preparadas
           git add .
           
-          # Verifica se os mapas mudaram em relação aos que já estavam no GitHub
+          # Verifica se os novos mapas são numericamente diferentes dos que já estavam guardados
           if git diff-index --quiet HEAD; then
             echo "Nenhuma alteração nos mapas hoje. O IPMA ainda não atualizou."
           else
