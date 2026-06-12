@@ -20,10 +20,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 3. Instalar dependências (Playwright)
+     - name: 3. Instalar dependências (Playwright)
         run: |
           pip install -r requirements.txt
-          playwright install --with-deps chromium
+          # Instalamos o navegador sem pedir especificamente o libasound2 antigo, 
+          # deixando o sistema operativo resolver a dependência t64 automaticamente
+          playwright install chromium
 
       - name: 4. Executar Scraper
         run: python scraper_ipma.py
