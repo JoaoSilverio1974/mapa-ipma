@@ -39,12 +39,18 @@ jobs:
         run: |
           git config --global user.name "Bot Operacional"
           git config --global user.email "bot@operacional.local"
+          
+          # 1. Puxa as suas alterações manuais (se existirem) para o robô antes de ele gravar
+          git config pull.rebase true
+          git pull origin main
+          
+          # 2. Adiciona as imagens geradas na raiz do repositório
           git add *.png
           
+          # 3. Verifica se há novidades e envia
           if git diff --staged --quiet; then
             echo "As imagens não sofreram alterações ou não foram geradas. Nada a fazer."
           else
             git commit -m "Atualização automática: mapas IPMA e CAOP (_PE)"
-            git pull --rebase origin main
             git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
           fi
