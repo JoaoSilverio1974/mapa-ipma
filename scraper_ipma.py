@@ -2,7 +2,6 @@ import os
 from playwright.sync_api import sync_playwright
 
 def capturar_mapas():
-    # Obter o caminho atual onde o código está a correr (raiz do repositório)
     pasta_raiz = os.getcwd()
     print(f"Diretório de trabalho: {pasta_raiz}")
     
@@ -13,7 +12,7 @@ def capturar_mapas():
         
         page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/")
         page.wait_for_selector(".leaflet-container", timeout=30000)
-        page.wait_for_timeout(8000) # Espera extra para renderizar as camadas CAOP
+        page.wait_for_timeout(8000) # Espera pelas camadas da CAOP
         
         # Limpeza visual
         page.evaluate("""
@@ -23,19 +22,19 @@ def capturar_mapas():
         
         mapa = page.locator(".leaflet-container").first
         
-        # Captura forçando o caminho absoluto na pasta raiz
-        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_hoje.png"))
+        # Captura com os NOVOS NOMES solicitados (_PE)
+        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_hoje_PE.png"))
         print("Guardado: portugal_hoje_PE.png")
         
         try:
             page.locator('text="Amanhã"').first.click(timeout=5000)
             page.wait_for_timeout(4000)
-            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_amanha.png"))
+            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_amanha_PE.png"))
             print("Guardado: portugal_amanha_PE.png")
             
             page.locator('text="Depois de amanhã"').first.click(timeout=5000)
             page.wait_for_timeout(4000)
-            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_depois.png"))
+            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_depois_PE.png"))
             print("Guardado: portugal_depois_PE.png")
         except:
             print("Aviso: Falha na captura dos dias seguintes.")
