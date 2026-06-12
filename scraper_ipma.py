@@ -1,60 +1,46 @@
+import os
 from playwright.sync_api import sync_playwright
 
 def capturar_mapas():
+    # Obter o caminho atual onde o código está a correr (raiz do repositório)
+    pasta_raiz = os.getcwd()
+    print(f"Diretório de trabalho: {pasta_raiz}")
+    
     with sync_playwright() as p:
-        print("A iniciar o browser invisível...")
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
+        page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/")
+        page.wait_for_selector(".leaflet-container", timeout=30000)
+        page.wait_for_timeout(8000) # Espera extra para renderizar as camadas CAOP
+        
+        # Limpeza visual
+        page.evaluate("""
+            var els = document.querySelectorAll('header, footer, nav, .leaflet-control-container, [id*=cookie]');
+            els.forEach(el => { if(el) el.style.display = 'none'; });
+        """)
+        
+        mapa = page.locator(".leaflet-container").first
+        
+        # Captura forçando o caminho absoluto na pasta raiz
+        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_hoje.png"))
+        print("Guardado: portugal_hoje.png")
+        
         try:
-            print("A aceder ao site do IPMA...")
-            page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/")
+            page.locator('text="Amanhã"').first.click(timeout=5000)
+            page.wait_for_timeout(4000)
+            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_amanha.png"))
+            print("Guardado: portugal_amanha.png")
             
-            # Aguarda garantidamente pelo motor do mapa (Leaflet)
-            page.wait_for_selector(".leaflet-container", timeout=20000)
+            page.locator('text="Depois de amanhã"').first.click(timeout=5000)
+            page.wait_for_timeout(4000)
+            mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_depois.png"))
+            print("Guardado: portugal_depois.png")
+        except:
+            print("Aviso: Falha na captura dos dias seguintes.")
             
-            # Espera 5 segundos extra para que todos os polígonos da CAOP carreguem
-            page.wait_for_timeout(5000) 
-            
-            print("A limpar banners e menus (Cookies, etc)...")
-            page.evaluate("""
-                // Esconde cabeçalhos, rodapés e controlos do mapa
-                var elementos = document.querySelectorAll('header, footer, nav, .breadcrumb, .leaflet-control-container');
-                elementos.forEach(function(el) { if(el) el.style.display = 'none'; });
-                
-                // Força o fecho de qualquer banner de cookies que possa tapar o mapa
-                var cookies = document.querySelectorAll('[id*="cookie"], [class*="cookie"]');
-                cookies.forEach(function(c) { if(c) c.style.display = 'none'; });
-            """)
-            
-            # Agarra o mapa pela classe universal do Leaflet
-            elemento_mapa = page.locator(".leaflet-container").first
-            
-            print("A capturar mapa de HOJE...")
-            elemento_mapa.screenshot(path="portugal_hoje.png")
-            
-            # Tenta capturar os outros dias
-            try:
-                print("A capturar mapa de AMANHÃ...")
-                # Procura qualquer botão que contenha a palavra "Amanhã" ou "+ 24"
-                page.locator('text="Amanhã"').first.click(timeout=5000)
-                page.wait_for_timeout(3000)
-                elemento_mapa.screenshot(path="portugal_amanha.png")
-                
-                print("A capturar mapa de DEPOIS DE AMANHÃ...")
-                page.locator('text="Depois de amanhã"').first.click(timeout=5000)
-                page.wait_for_timeout(3000)
-                elemento_mapa.screenshot(path="portugal_depois.png")
-            except Exception as e2:
-                print("Aviso: Não encontrou os botões dos dias seguintes, ou as palavras mudaram. Apenas Hoje foi guardado.")
-                
-        except Exception as e:
-            print(f"ERRO CRÍTICO: Falha ao processar o mapa. Detalhes: {str(e)}")
-            
-        finally:
-            browser.close()
-            print("Processo terminado.")
+        browser.close()
 
 if __name__ == "__main__":
     capturar_mapas()
