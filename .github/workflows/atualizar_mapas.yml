@@ -34,9 +34,19 @@ jobs:
         run: python scraper_ipma.py
 
       - name: 6. Guardar imagens no Repositório
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "Bot Operacional"
           git config --global user.email "bot@operacional.local"
           git add *.png
-          git commit -m "Atualização automática: mapas IPMA e CAOP" || echo "Sem alterações para enviar"
-          git push
+          
+          # Verifica se há ficheiros novos ou alterados antes de tentar guardar
+          if git diff --staged --quiet; then
+            echo "As imagens não sofreram alterações ou não foram geradas. Nada a fazer."
+          else
+            git commit -m "Atualização automática: mapas IPMA e CAOP"
+            # Faz o download das suas alterações manuais (sincroniza) antes de enviar as imagens
+            git pull --rebase origin main
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+          fi
