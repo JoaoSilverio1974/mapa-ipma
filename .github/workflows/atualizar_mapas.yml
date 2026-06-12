@@ -1,0 +1,38 @@
+name: Atualizar Mapas do IPMA (Auto)
+
+on:
+  schedule:
+    # Corre todos os dias às 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Permite-lhe ir ao GitHub e clicar num botão para forçar a atualização na hora
+
+jobs:
+  fotografar-mapas:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout do código
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar ambiente Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 3. Instalar dependências (Playwright)
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: 4. Executar Scraper
+        run: python scraper_ipma.py
+
+      - name: 5. Guardar imagens no Repositório
+        run: |
+          git config --global user.name "Bot Operacional"
+          git config --global user.email "bot@operacional.local"
+          git add portugal_hoje.png portugal_amanha.png portugal_depois.png
+          git commit -m "Atualização diária dos mapas (Auto)" || echo "Sem alterações"
+          git push
