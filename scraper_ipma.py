@@ -25,18 +25,18 @@ def capturar_mapas():
         
         # Captura forçando o caminho absoluto na pasta raiz
         mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_hoje.png"))
-        print("Guardado: portugal_hoje.png")
+        print("Guardado: portugal_hoje_PE.png")
         
         try:
             page.locator('text="Amanhã"').first.click(timeout=5000)
             page.wait_for_timeout(4000)
             mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_amanha.png"))
-            print("Guardado: portugal_amanha.png")
+            print("Guardado: portugal_amanha_PE.png")
             
             page.locator('text="Depois de amanhã"').first.click(timeout=5000)
             page.wait_for_timeout(4000)
             mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_depois.png"))
-            print("Guardado: portugal_depois.png")
+            print("Guardado: portugal_depois_PE.png")
         except:
             print("Aviso: Falha na captura dos dias seguintes.")
             
