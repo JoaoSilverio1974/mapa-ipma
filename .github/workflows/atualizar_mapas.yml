@@ -2,8 +2,8 @@ name: Atualizar Mapas do IPMA (Auto)
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+    - cron: '0 6 * * *' # Corre todos os dias às 06:00
+  workflow_dispatch:      # Permite correr manualmente a qualquer momento
 
 jobs:
   fotografar-mapas:
@@ -20,20 +20,23 @@ jobs:
         with:
           python-version: '3.11'
 
-     - name: 3. Instalar dependências (Playwright)
+      - name: 3. Instalar dependências de sistema (Fix para Ubuntu 24.04)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libx11-xcb1 libxcb-dri3-0 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxshmfence1 libgbm1 libasound2t64
+
+      - name: 4. Instalar Python e Playwright
         run: |
           pip install -r requirements.txt
-          # Instalamos o navegador sem pedir especificamente o libasound2 antigo, 
-          # deixando o sistema operativo resolver a dependência t64 automaticamente
           playwright install chromium
 
-      - name: 4. Executar Scraper
+      - name: 5. Executar Scraper
         run: python scraper_ipma.py
 
-      - name: 5. Guardar imagens no Repositório
+      - name: 6. Guardar imagens no Repositório
         run: |
           git config --global user.name "Bot Operacional"
           git config --global user.email "bot@operacional.local"
           git add *.png
-          git commit -m "Atualização diária dos mapas (Auto)" || echo "Sem alterações"
+          git commit -m "Atualização automática: mapas IPMA e CAOP" || echo "Sem alterações para enviar"
           git push
