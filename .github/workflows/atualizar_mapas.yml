@@ -3,7 +3,7 @@ name: Atualizar Mapas do IPMA (Auto)
 on:
   schedule:
     - cron: '0 6 * * *' # Corre todos os dias às 06:00
-  workflow_dispatch:      # Permite correr manualmente a qualquer momento
+  workflow_dispatch:      # Permite correr manualmente
 
 jobs:
   fotografar-mapas:
@@ -41,12 +41,10 @@ jobs:
           git config --global user.email "bot@operacional.local"
           git add *.png
           
-          # Verifica se há ficheiros novos ou alterados antes de tentar guardar
           if git diff --staged --quiet; then
             echo "As imagens não sofreram alterações ou não foram geradas. Nada a fazer."
           else
-            git commit -m "Atualização automática: mapas IPMA e CAOP"
-            # Faz o download das suas alterações manuais (sincroniza) antes de enviar as imagens
+            git commit -m "Atualização automática: mapas IPMA e CAOP (_PE)"
             git pull --rebase origin main
             git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
           fi
