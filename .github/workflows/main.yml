@@ -26,10 +26,11 @@ jobs:
           AMANHA=$(date -d "+1 day" +%Y-%m-%d)
           DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
           
-          # URL BASE DO SERVIDOR DO IPMA (Sem parâmetros de tempo)
-          URL="https://cs2.ipma.pt/azstats/wms?map=rcm-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
+          # URL BASE REPARADO: Aponta para a rota pública ativa atual do MapServer do IPMA 
+          # mantendo os parâmetros originais de enquadramento (BBOX) e dimensões (500x1000).
+          URL="https://cs2.ipma.pt/azstats/wms?map=public/rcm.map&service=WMS&request=GetMap&layers=concelhos_rcm&styles=&format=image/png&transparent=true&version=1.1.1&srs=EPSG:3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
 
-          # Cabeçalho de simulação (User-Agent) para contornar o bloqueio da Firewall do IPMA
+          # Cabeçalho de simulação de navegador
           USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
           echo "A descarregar mapa de hoje (${HOJE})..."
@@ -41,8 +42,7 @@ jobs:
           echo "A descarregar mapa de depois (${DEPOIS})..."
           curl -s -H "User-Agent: $USER_AGENT" -o portugal_depois.png "${URL}&time=${DEPOIS}T00:00:00Z"
 
-          # Validação de segurança: Verifica se os ficheiros descarregados são imagens válidas
-          # Se o IPMA bloquear, o ficheiro não será um PNG válido e o script avisa no log
+          # Validação no terminal do GitHub para garantir que veio um PNG e não um HTML de erro
           file portugal_hoje.png
           ls -lh portugal_*.png
 
@@ -56,6 +56,6 @@ jobs:
           if git diff-index --quiet HEAD; then
             echo "Nenhuma alteração real nos mapas. O IPMA mantém os mesmos dados."
           else
-            git commit -m "Atualizar mapas completos do IPMA (Bypass WAF)"
+            git commit -m "Atualizar mapas completos do IPMA (Nova Rota Ativa)"
             git push
           fi
