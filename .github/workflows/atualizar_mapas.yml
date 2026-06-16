@@ -1,13 +1,29 @@
-name: Atualizar Mapas do IPMA
+name: Atualizar Mapas IPMA
 on:
-  push:
-    branches: [ main ]
+  schedule:
+    - cron: '0 6 * * *'
   workflow_dispatch:
-
 jobs:
-  build:
+  run-all:
     runs-on: ubuntu-latest
+    permissions: contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Teste de Workflow
-        run: echo "O workflow está ativo!"
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Instalar Playwright
+        run: |
+          pip install playwright
+          playwright install chromium --with-deps
+      - name: Rodar Scraper
+        run: python scraper_ipma.py
+      - name: Commit e Push
+        run: |
+          git config --global user.name "Bot Operacional"
+          git config --global user.email "bot@operacional.local"
+          git add *.png
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-update mapas"
+            git pull --rebase origin main
+            git push origin main
+          fi
