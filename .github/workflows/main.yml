@@ -5,9 +5,9 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
-# Esta linha resolve o aviso (Warning) do Node.js 20
+# CORREÇÃO: Variável oficial reconhecida pelo GitHub para silenciar o aviso do Node
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
   update-images:
@@ -26,11 +26,11 @@ jobs:
           AMANHA=$(date -d "+1 day" +%Y-%m-%d)
           DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
           
-          # URL INTEGRAL CORRIGIDO: Atualizado com o novo parâmetro do IPMA (rcm_2026)
-          # Mantém as coordenadas corretas de Portugal Continental e o tamanho proporcional (500x1000)
-          URL="https://cs2.ipma.pt/azstats/wms?map=rcm_2026-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm_2026-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
+          # URL INTEGRAL VALIDADO: Removido o sufixo temporário "2026" que quebrava o WMS.
+          # Mantém o modelo IDW oficial, a grelha de concelhos e o enquadramento perfeito (EPSG:3857).
+          URL="https://cs2.ipma.pt/azstats/wms?map=rcm-forecast_9p1d-continental-prevstat-idw&service=WMS&request=GetMap&layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&styles=&format=image%2Fpng&transparent=true&version=1.1.1&srs=EPSG%3A3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
 
-          # Faz o download das 3 imagens integrais usando o novo URL
+          # Faz o download das 3 imagens integrais usando o URL restaurado
           curl -s -o portugal_hoje.png "${URL}&time=${HOJE}T00%3A00%3A00Z"
           curl -s -o portugal_amanha.png "${URL}&time=${AMANHA}T00%3A00%3A00Z"
           curl -s -o portugal_depois.png "${URL}&time=${DEPOIS}T00%3A00%3A00Z"
