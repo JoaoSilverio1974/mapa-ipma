@@ -1,5 +1,7 @@
-<HTML>
-<HEAD><TITLE>MapServer Message</TITLE></HEAD>
-<BODY BGCOLOR="#FFFFFF">
-msLoadMap(): Unable to access file. (/etc/mapserver/PUBLIC/public/rcm.map.map)
-</BODY></HTML>
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>404 Not Found</title>
+</head><body>
+<h1>Not Found</h1>
+<p>The requested URL /resources.www/images/meteorologia/rcm/rcm_hoje_idw.png was not found on this server.</p>
+</body></html>
