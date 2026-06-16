@@ -27,7 +27,7 @@ jobs:
         run: |
           pip install requests matplotlib
 
-      - name: Descarregar Dados e Gerar Mapas Radiais
+      - name: Descarregar Dados e Gerar Mapas Oficiais
         run: |
           cat << 'EOF' > gerar_mapas.py
           import requests
@@ -47,43 +47,57 @@ jobs:
               data_alvo = (datetime.now() + timedelta(days=d)).strftime("%Y-%m-%d")
               nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
               
-              # API pública de dados abertos do IPMA (Texto puro, 100% estável)
-              url = f"https://api.ipma.pt/open-data/forecast/forecast/meteorology/rcm/rcm-d{d}.json"
+              # API pública oficial de dados abertos do IPMA para o Risco de Incêndio (RCM)
+              url = f"https://api.ipma.pt/open-data/forecast/meteorology/rcm/rcm-d{d}.json"
               resposta = requests.get(url)
               
               if resposta.status_code == 200:
                   dados = resposta.json()
                   
-                  # Criar uma figura simulando o mapa de Portugal
+                  # Criar uma figura proporcional para o mapa de Portugal (500x1000 px)
                   fig, ax = plt.subplots(figsize=(5, 10))
-                  ax.set_facecolor('#F0F8FF') # Fundo azul suave (Oceano)
+                  ax.set_facecolor('#E6F2FF') # Fundo azul (Oceano)
                   
-                  # No JSON do IPMA, 'local' é um dicionário composto por id_concelho: dados_concelho
-                  lista_locais = dados.get('local', {})
+                  # Resgata a lista correta da API do IPMA ('data')
+                  lista_registos = dados.get('data', [])
+                  
+                  # Posicionamento inicial na tela
+                  x_pos = 10
                   y_pos = 950
                   
-                  # CORREÇÃO CRÍTICA: Percorre o dicionário extraindo os objetos internos corretamente
-                  if isinstance(lista_locais, dict):
-                      for id_concelho, dados_concelho in lista_locais.items():
-                          if isinstance(dados_concelho, dict):
-                              rcm_val = str(dados_concelho.get('rcm', 1))
-                              cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
+                  for registo in lista_registos:
+                      if isinstance(registo, dict):
+                          # Extrai o valor do risco (Garante string "1" a "5")
+                          rcm_val = str(registo.get('rcm', 1))
+                          cor = CORES_RISCO.get(rcm_val, "#90EE90")
+                          
+                          # Gera uma matriz visual sequencial distribuída na tela
+                          ax.add_patch(plt.Rectangle((x_pos, y_pos), 6, 6, color=cor, edgecolor='none'))
+                          
+                          # Avança horizontalmente criando colunas de concelhos
+                          x_pos += 8
+                          if x_pos > 85:
+                              x_pos = 10
+                              y_pos -= 10 # Desce uma linha (De Norte para Sul)
                               
-                              # Desenha uma barra horizontal estilizada
-                              ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
-                              y_pos -= 10
-                              if y_pos < 50: break
+                          if y_pos < 50: 
+                              break
                   
+                  # Configurações do plano cartesiano invisível
                   ax.set_xlim(0, 100)
                   ax.set_ylim(0, 1000)
                   ax.axis('off')
                   
-                  # Adiciona o título com a respetiva data
+                  # Título formatado com a data correta
                   plt.title(f"RISCO INCÊNDIO - {data_alvo}", fontsize=14, fontweight='bold', pad=20)
                   plt.tight_layout()
+                  
+                  # Guarda o ficheiro PNG limpo
                   plt.savefig(nome_ficheiro, dpi=100, facecolor=fig.get_facecolor(), edgecolor='none')
                   plt.close()
-                  print(f"Mapa {nome_ficheiro} gerado localmente com sucesso.")
+                  print(f"-> Ficheiro {nome_ficheiro} gerado com sucesso.")
+              else:
+                  print(f"Erro ao contactar a API no dia d={d}. Status: {resposta.status_code}")
           EOF
           python gerar_mapas.py
 
@@ -92,18 +106,18 @@ jobs:
           git config --global user.name 'GitHub Action Bot'
           git config --global user.email 'action@github.com'
           
-          # Garante que adicionamos apenas as imagens geradas
+          # Força a adição exclusiva dos três mapas gerados
           git add portugal_hoje.png portugal_amanha.png portugal_depois.png
           
-          # Verifica se há alterações reais nos mapas antes de fazer o commit
+          # Verifica se existem alterações em relação ao commit anterior
           if git diff-index --quiet HEAD; then
-            echo "Nenhuma alteração nos mapas hoje. O histórico mantém-se idêntico."
+            echo "Nenhuma alteração nos mapas para hoje."
           else
-            git commit -m "Gerar mapas de risco autónomos via API JSON (Bypass Completo)"
+            git commit -m "Gerar mapas de risco autónomos via API JSON estruturada"
             
-            # Sincroniza com o histórico do servidor antes do upload para evitar rejeições
+            # Corrige de vez o erro [rejected] trazendo o histórico remoto primeiro
             git pull --rebase origin main
             
-            # Faz o envio definitivo para o repositório
+            # Envia em segurança para a tua branch
             git push origin main
           fi
