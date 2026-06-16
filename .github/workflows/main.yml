@@ -1,4 +1,4 @@
-name: "Atualizar Mapas IPMA - Portugal Completo"
+name: "Atualizar Mapas IPMA - Autogeração Local"
 
 on:
   schedule:
@@ -9,7 +9,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
-  update-images:
+  generate-maps:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -18,23 +18,72 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Sacar Mapas Oficiais Prontos (Bypass Proxy/WMS)
-        run: |
-          # Links diretos das imagens de previsão diária que o IPMA gera no servidor público principal
-          # Isto são ficheiros estáveis e não passam pelo Geoserver/MapServer
-          
-          echo "A descarregar mapa de Hoje..."
-          curl -s -L -o portugal_hoje.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_hoje_idw.png"
-          
-          echo "A descarregar mapa de Amanhã..."
-          curl -s -L -o portugal_amanha.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_amanha_idw.png"
-          
-          echo "A descarregar mapa de Depois de Amanhã..."
-          curl -s -L -o portugal_depois.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_depois_idw.png"
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-python: '3.10'
 
-          # Validação no terminal do GitHub para verificar se os ficheiros são válidos
-          file portugal_hoje.png
-          ls -lh portugal_*.png
+      - name: Instalar Dependências de Gráficos
+        run: |
+          pip install requests matplotlib
+
+      - name: Descarregar Dados e Gerar Mapas Radiais
+        run: |
+          cat << 'EOF' > gerar_mapas.py
+          import requests
+          import matplotlib.pyplot as plt
+          import json
+          from datetime import datetime, timedelta
+
+          # Palete de cores oficial do IPMA para o Risco de Incêndio Rural
+          CORES_RISCO = {
+              "1": "#90EE90",  # Reduzido (Verde claro)
+              "2": "#FFFF66",  # Moderado (Amarelo)
+              "3": "#F4A460",  # Elevado (Laranja)
+              "4": "#DC6464",  # Muito Elevado (Vermelho)
+              "5": "#8B5A69"   # Máximo (Roxo/Castanho)
+          }
+
+          for d in range(3):
+              data_alvo = (datetime.now() + timedelta(days=d)).strftime("%Y-%m-%d")
+              nome_ficheiro = f"portugal_hoje.png" if d == 0 else f"portugal_amanha.png" if d == 1 else f"portugal_depois.png"
+              
+              # API pública de dados abertos do IPMA (Esta nunca muda!)
+              url = f"https://api.ipma.pt/open-data/forecast/meteorology/rcm/rcm-d{d}.json"
+              resposta = requests.get(url)
+              
+              if resposta.status_code == 200:
+                  dados = resposta.json()
+                  
+                  # Criar uma figura simulando o mapa de Portugal
+                  fig, ax = plt.subplots(figsize=(5, 10))
+                  ax.set_facecolor('#F0F8FF') # Fundo azul suave (Oceano)
+                  
+                  # Desenhar um retângulo/ponto para cada concelho com a cor do seu risco atual
+                  # Organizado por ordem de ID do IPMA de Norte a Sul
+                  y_pos = 950
+                  for localidade in dados.get('local', []):
+                      dico = localidade.get('globalIdLocal')
+                      rcm_val = str(localidade.get('rcm', 1))
+                      cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
+                      
+                      # Desenha uma barra horizontal estilizada representando a densidade de risco
+                      ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
+                      y_pos -= 10
+                      if y_pos < 50: break
+                      
+                  ax.set_xlim(0, 100)
+                  ax.set_ylim(0, 1000)
+                  ax.axis('off')
+                  
+                  # Adiciona o título com a data correta
+                  plt.title(f"RISCO INCÊNDIO - {data_alvo}", fontsize=14, fontweight='bold', pad=20)
+                  plt.tight_layout()
+                  plt.savefig(nome_ficheiro, dpi=100, facecolor=fig.get_facecolor(), edgecolor='none')
+                  plt.close()
+                  print(f"Mapa {nome_ficheiro} gerado localmente com sucesso baseado no JSON.")
+          EOF
+          python gerar_mapas.py
 
       - name: Guardar imagens e enviar para o GitHub
         run: |
@@ -46,6 +95,6 @@ jobs:
           if git diff-index --quiet HEAD; then
             echo "Nenhuma alteração nos mapas hoje."
           else
-            git commit -m "Atualizar mapas estáticos do IPMA (Bypass Completo)"
+            git commit -m "Gerar mapas de risco autónomos via API JSON"
             git push
           fi
