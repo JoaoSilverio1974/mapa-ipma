@@ -2,8 +2,11 @@ name: Atualizar Mapas do IPMA (Auto)
 
 on:
   schedule:
-    - cron: '0 6 * * *' # Corre todos os dias às 06:00
-  workflow_dispatch:      # Permite correr manualmente
+    - cron: '0 6 * * *' 
+  workflow_dispatch:      
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
   fotografar-mapas:
@@ -30,7 +33,7 @@ jobs:
           pip install -r requirements.txt
           playwright install chromium
 
-      - name: 5. Executar Scraper
+      - name: 5. Executar Scraper Unificado (Gera 6 Mapas)
         run: python scraper_ipma.py
 
       - name: 6. Guardar imagens no Repositório
@@ -40,19 +43,12 @@ jobs:
           git config --global user.name "Bot Operacional"
           git config --global user.email "bot@operacional.local"
           
-          # 1. Diz ao Git para adicionar as imagens recém-criadas na raiz
           git add *.png
           
-          # 2. Verifica se há imagens novas
           if git diff --staged --quiet; then
             echo "As imagens não sofreram alterações. Nada a fazer."
           else
-            # 3. Empacota as imagens
-            git commit -m "Atualização automática: mapas IPMA e CAOP"
-            
-            # 4. A LINHA MÁGICA: Sincroniza o trabalho do robô com as suas edições manuais
+            git commit -m "Atualização automática: 6 mapas IPMA (PE e PIR)"
             git pull --rebase origin main
-            
-            # 5. Envia tudo para o GitHub
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+            git push origin HEAD:main
           fi
