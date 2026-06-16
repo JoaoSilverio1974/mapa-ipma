@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  # Silencia avisos de Node do GitHub sem quebrar o interpretador
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-python: '3.10'
+          python-version: '3.10'
 
       - name: Instalar Dependências de Gráficos
         run: |
@@ -32,7 +33,6 @@ jobs:
           cat << 'EOF' > gerar_mapas.py
           import requests
           import matplotlib.pyplot as plt
-          import json
           from datetime import datetime, timedelta
 
           # Palete de cores oficial do IPMA para o Risco de Incêndio Rural
@@ -46,9 +46,9 @@ jobs:
 
           for d in range(3):
               data_alvo = (datetime.now() + timedelta(days=d)).strftime("%Y-%m-%d")
-              nome_ficheiro = f"portugal_hoje.png" if d == 0 else f"portugal_amanha.png" if d == 1 else f"portugal_depois.png"
+              nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
               
-              # API pública de dados abertos do IPMA (Esta nunca muda!)
+              # API pública de dados abertos do IPMA (Texto puro, 100% estável)
               url = f"https://api.ipma.pt/open-data/forecast/meteorology/rcm/rcm-d{d}.json"
               resposta = requests.get(url)
               
@@ -59,15 +59,13 @@ jobs:
                   fig, ax = plt.subplots(figsize=(5, 10))
                   ax.set_facecolor('#F0F8FF') # Fundo azul suave (Oceano)
                   
-                  # Desenhar um retângulo/ponto para cada concelho com a cor do seu risco atual
-                  # Organizado por ordem de ID do IPMA de Norte a Sul
+                  # Desenhar blocos dinâmicos para cada concelho com a cor do risco atual
                   y_pos = 950
                   for localidade in dados.get('local', []):
-                      dico = localidade.get('globalIdLocal')
                       rcm_val = str(localidade.get('rcm', 1))
                       cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
                       
-                      # Desenha uma barra horizontal estilizada representando a densidade de risco
+                      # Desenha uma barra horizontal estilizada
                       ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
                       y_pos -= 10
                       if y_pos < 50: break
@@ -76,12 +74,12 @@ jobs:
                   ax.set_ylim(0, 1000)
                   ax.axis('off')
                   
-                  # Adiciona o título com a data correta
+                  # Adiciona o título com a respetiva data
                   plt.title(f"RISCO INCÊNDIO - {data_alvo}", fontsize=14, fontweight='bold', pad=20)
                   plt.tight_layout()
                   plt.savefig(nome_ficheiro, dpi=100, facecolor=fig.get_facecolor(), edgecolor='none')
                   plt.close()
-                  print(f"Mapa {nome_ficheiro} gerado localmente com sucesso baseado no JSON.")
+                  print(f"Mapa {nome_ficheiro} gerado localmente com sucesso.")
           EOF
           python gerar_mapas.py
 
@@ -90,11 +88,19 @@ jobs:
           git config --global user.name 'GitHub Action Bot'
           git config --global user.email 'action@github.com'
           
+          # Garante que adicionamos apenas as imagens geradas
           git add portugal_hoje.png portugal_amanha.png portugal_depois.png
           
+          # Verifica se há alterações reais nos mapas antes de fazer o commit
           if git diff-index --quiet HEAD; then
-            echo "Nenhuma alteração nos mapas hoje."
+            echo "Nenhuma alteração nos mapas hoje. O histórico mantém-se idêntico."
           else
-            git commit -m "Gerar mapas de risco autónomos via API JSON"
-            git push
+            git commit -m "Gerar mapas de risco autónomos via API JSON (Bypass Completo)"
+            
+            # --- SOLUÇÃO DE SEGURANÇA CONTRA ERROS REJECTED ---
+            # Descarrega as atualizações do servidor e junta ao histórico local de forma limpa
+            git pull --rebase origin main
+            
+            # Faz o envio definitivo para a tua branch principal sem bloqueios
+            git push origin main
           fi
