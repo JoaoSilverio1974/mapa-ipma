@@ -1,32 +1,41 @@
-name: Atualizar Mapas IPMA
+name: Atualizar Mapas do IPMA
+
 on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+
 jobs:
-  run-all:
+  fotografar-mapas:
     runs-on: ubuntu-latest
-    permissions: contents: write
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
+        with:
+          python-version: '3.11'
+
       - name: Instalar dependências
         run: |
           sudo apt-get update
           sudo apt-get install -y libnss3 libx11-xcb1 libxcb-dri3-0 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxshmfence1 libgbm1 libasound2t64
-          pip install -r requirements.txt
+          pip install playwright requests
           playwright install chromium
+
       - name: Rodar Scraper
         run: python scraper_ipma.py
+
       - name: Commit e Push
         run: |
           git config --global user.name "Bot Operacional"
           git config --global user.email "bot@operacional.local"
           git add *.png
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-update 6 mapas IPMA"
+            git commit -m "Auto-update 6 mapas"
             git pull --rebase origin main
             git push origin main
           fi
