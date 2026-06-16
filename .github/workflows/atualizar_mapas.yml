@@ -3,18 +3,21 @@ on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+
 jobs:
-  run-scraper:
+  run-all:
     runs-on: ubuntu-latest
-    permissions: contents: write
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
-      - name: Instalar Playwright
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
         run: |
           pip install playwright
-          playwright install chromium --with-deps
+          playwright install chromium
       - name: Rodar Scraper
         run: python scraper_ipma.py
       - name: Commit
