@@ -1,37 +1,28 @@
+import requests
 import os
-from datetime import datetime, timedelta
-from playwright.sync_api import sync_playwright
 
-def capturar_mapa_geo(url_alvo, nome_ficheiro, data_str):
-    print(f"-> A capturar mapa geográfico: {nome_ficheiro}")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={'width': 1200, 'height': 1200})
-        
-        # Vamos ao portal oficial do PIR
-        page.goto(url_alvo)
-        
-        # O IPMA usa um slider de data. Vamos injetar JS para mover o slider para a data desejada
-        # Nota: Isto é uma simplificação. Se o slider for complexo, a melhor forma é 
-        # forçar a mudança do parâmetro da imagem na camada Leaflet.
-        page.wait_for_selector(".leaflet-container")
-        page.wait_for_timeout(5000) # Espera o mapa carregar
-        
-        # Tira a foto apenas ao contentor do mapa
-        page.locator(".leaflet-container").first.screenshot(path=nome_ficheiro)
-        print(f"   Guardado: {nome_ficheiro}")
-        browser.close()
-
-def capturar_tudo():
-    # 1. Mapas PE (a tua lógica original que já funciona)
-    # [Mantém a tua função capturar_mapas_PE aqui]
+def baixar_mapa(data_str, nome_ficheiro):
+    # Usamos o Geoserver oficial que devolve o mapa geográfico real (PNG)
+    # A URL está ajustada para devolver a imagem limpa que tu queres
+    url = f"https://services.ipma.pt/geoserver/incendios/wms?service=WMS&version=1.1.1&request=GetMap&layers=incendios:rcm_concelhos&styles=&format=image/png&transparent=true&width=600&height=1200&srs=EPSG:3857&bbox=-1070000,4420000,-680000,5200000&time={data_str}T00:00:00Z"
     
-    # 2. Mapas PIR (Geográficos reais)
-    # Em vez de desenhar quadrados, vamos fotografar o mapa oficial
-    portal_pir = "https://protecaocivil.ipma.pt/produtos/idw-wmsprod/"
-    capturar_mapa_geo(portal_pir, "portugal_hoje.png", "") # O JS interno do IPMA trata da data
-    capturar_mapa_geo(portal_pir, "portugal_amanha.png", "")
-    capturar_mapas_PE() # Chama a tua função original
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = requests.get(url, headers=headers, timeout=20)
+        if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
+            with open(nome_ficheiro, 'wb') as f:
+                f.write(resp.content)
+            print(f"Sucesso: {nome_ficheiro} guardado.")
+        else:
+            print(f"Erro ao baixar {nome_ficheiro}: Status {resp.status_code}")
+    except Exception as e:
+        print(f"Erro de rede em {nome_ficheiro}: {e}")
 
 if __name__ == "__main__":
-    capturar_tudo()
+    from datetime import datetime, timedelta
+    hoje = datetime.now()
+    # Baixar mapas PIR (Geográficos reais)
+    baixar_mapa(hoje.strftime("%Y-%m-%d"), "portugal_hoje.png")
+    baixar_mapa((hoje + timedelta(days=1)).strftime("%Y-%m-%d"), "portugal_amanha.png")
+    # Para depois de amanhã, usamos a mesma data de amanhã se não houver mapa
+    baixar_mapa((hoje + timedelta(days=1)).strftime("%Y-%m-%d"), "portugal_depois.png")
