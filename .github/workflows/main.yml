@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  # Silencia avisos de Node do GitHub sem quebrar o interpretador
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
@@ -49,7 +48,7 @@ jobs:
               nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
               
               # API pública de dados abertos do IPMA (Texto puro, 100% estável)
-              url = f"https://api.ipma.pt/open-data/forecast/meteorology/rcm/rcm-d{d}.json"
+              url = f"https://api.ipma.pt/open-data/forecast/forecast/meteorology/rcm/rcm-d{d}.json"
               resposta = requests.get(url)
               
               if resposta.status_code == 200:
@@ -61,14 +60,18 @@ jobs:
                   
                   # Desenhar blocos dinâmicos para cada concelho com a cor do risco atual
                   y_pos = 950
-                  for localidade in dados.get('local', []):
-                      rcm_val = str(localidade.get('rcm', 1))
-                      cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
-                      
-                      # Desenha uma barra horizontal estilizada
-                      ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
-                      y_pos -= 10
-                      if y_pos < 50: break
+                  lista_locais = dados.get('local', [])
+                  
+                  for localidade in lista_locais:
+                      # CORREÇÃO CRÍTICA: Garante que estamos a lidar com um dicionário válido antes do .get
+                      if isinstance(localidade, dict):
+                          rcm_val = str(localidade.get('rcm', 1))
+                          cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
+                          
+                          # Desenha uma barra horizontal estilizada
+                          ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
+                          y_pos -= 10
+                          if y_pos < 50: break
                       
                   ax.set_xlim(0, 100)
                   ax.set_ylim(0, 1000)
@@ -97,10 +100,9 @@ jobs:
           else
             git commit -m "Gerar mapas de risco autónomos via API JSON (Bypass Completo)"
             
-            # --- SOLUÇÃO DE SEGURANÇA CONTRA ERROS REJECTED ---
-            # Descarrega as atualizações do servidor e junta ao histórico local de forma limpa
+            # Sincroniza com o histórico do servidor antes do upload
             git pull --rebase origin main
             
-            # Faz o envio definitivo para a tua branch principal sem bloqueios
+            # Faz o envio definitivo para o repositório
             git push origin main
           fi
