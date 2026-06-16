@@ -29,6 +29,9 @@ jobs:
 
       - name: Descarregar Dados e Gerar Mapas Oficiais
         run: |
+          # FORÇA A LIMPEZA: Apaga o script antigo para garantir que não há misturas
+          rm -f gerar_mapas.py
+          
           cat << 'EOF' > gerar_mapas.py
           import requests
           import matplotlib.pyplot as plt
@@ -47,8 +50,8 @@ jobs:
               data_alvo = (datetime.now() + timedelta(days=d)).strftime("%Y-%m-%d")
               nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
               
-              # API pública oficial de dados abertos do IPMA para o Risco de Incêndio (RCM)
-              url = f"https://api.ipma.pt/open-data/forecast/meteorology/rcm/rcm-d{d}.json"
+              # API pública oficial do IPMA (Texto puro, 100% estável)
+              url = f"https://api.ipma.pt/open-data/forecast/forecast/meteorology/rcm/rcm-d{d}.json"
               resposta = requests.get(url)
               
               if resposta.status_code == 200:
@@ -115,7 +118,7 @@ jobs:
           else
             git commit -m "Gerar mapas de risco autónomos via API JSON estruturada"
             
-            # Corrige de vez o erro [rejected] trazendo o histórico remoto primeiro
+            # Sincroniza o histórico remoto primeiro para evitar rejeições
             git pull --rebase origin main
             
             # Envia em segurança para a tua branch
