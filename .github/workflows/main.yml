@@ -18,31 +18,21 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Calcular datas e sacar mapas completos
+      - name: Sacar Mapas Oficiais Prontos (Bypass Proxy/WMS)
         run: |
-          # Calcula as datas dinamicamente (Garante fuso horário de Portugal/Lisboa)
-          TZ="Europe/Lisbon"
-          HOJE=$(date +%Y-%m-%d)
-          AMANHA=$(date -d "+1 day" +%Y-%m-%d)
-          DEPOIS=$(date -d "+2 days" +%Y-%m-%d)
+          # Links diretos das imagens de previsão diária que o IPMA gera no servidor público principal
+          # Isto são ficheiros estáveis e não passam pelo Geoserver/MapServer
           
-          # URL BASE REPARADO: Aponta para a rota pública ativa atual do MapServer do IPMA 
-          # mantendo os parâmetros originais de enquadramento (BBOX) e dimensões (500x1000).
-          URL="https://cs2.ipma.pt/azstats/wms?map=public/rcm.map&service=WMS&request=GetMap&layers=concelhos_rcm&styles=&format=image/png&transparent=true&version=1.1.1&srs=EPSG:3857&width=500&height=1000&bbox=-1070000,4420000,-680000,5200000"
-
-          # Cabeçalho de simulação de navegador
-          USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-          echo "A descarregar mapa de hoje (${HOJE})..."
-          curl -s -H "User-Agent: $USER_AGENT" -o portugal_hoje.png "${URL}&time=${HOJE}T00:00:00Z"
+          echo "A descarregar mapa de Hoje..."
+          curl -s -L -o portugal_hoje.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_hoje_idw.png"
           
-          echo "A descarregar mapa de amanhã (${AMANHA})..."
-          curl -s -H "User-Agent: $USER_AGENT" -o portugal_amanha.png "${URL}&time=${AMANHA}T00:00:00Z"
+          echo "A descarregar mapa de Amanhã..."
+          curl -s -L -o portugal_amanha.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_amanha_idw.png"
           
-          echo "A descarregar mapa de depois (${DEPOIS})..."
-          curl -s -H "User-Agent: $USER_AGENT" -o portugal_depois.png "${URL}&time=${DEPOIS}T00:00:00Z"
+          echo "A descarregar mapa de Depois de Amanhã..."
+          curl -s -L -o portugal_depois.png "https://www.ipma.pt/resources.www/images/meteorologia/rcm/rcm_depois_idw.png"
 
-          # Validação no terminal do GitHub para garantir que veio um PNG e não um HTML de erro
+          # Validação no terminal do GitHub para verificar se os ficheiros são válidos
           file portugal_hoje.png
           ls -lh portugal_*.png
 
@@ -54,8 +44,8 @@ jobs:
           git add portugal_hoje.png portugal_amanha.png portugal_depois.png
           
           if git diff-index --quiet HEAD; then
-            echo "Nenhuma alteração real nos mapas. O IPMA mantém os mesmos dados."
+            echo "Nenhuma alteração nos mapas hoje."
           else
-            git commit -m "Atualizar mapas completos do IPMA (Nova Rota Ativa)"
+            git commit -m "Atualizar mapas estáticos do IPMA (Bypass Completo)"
             git push
           fi
