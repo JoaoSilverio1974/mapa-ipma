@@ -58,21 +58,22 @@ jobs:
                   fig, ax = plt.subplots(figsize=(5, 10))
                   ax.set_facecolor('#F0F8FF') # Fundo azul suave (Oceano)
                   
-                  # Desenhar blocos dinâmicos para cada concelho com a cor do risco atual
+                  # No JSON do IPMA, 'local' é um dicionário composto por id_concelho: dados_concelho
+                  lista_locais = dados.get('local', {})
                   y_pos = 950
-                  lista_locais = dados.get('local', [])
                   
-                  for localidade in lista_locais:
-                      # CORREÇÃO CRÍTICA: Garante que estamos a lidar com um dicionário válido antes do .get
-                      if isinstance(localidade, dict):
-                          rcm_val = str(localidade.get('rcm', 1))
-                          cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
-                          
-                          # Desenha uma barra horizontal estilizada
-                          ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
-                          y_pos -= 10
-                          if y_pos < 50: break
-                      
+                  # CORREÇÃO CRÍTICA: Percorre o dicionário extraindo os objetos internos corretamente
+                  if isinstance(lista_locais, dict):
+                      for id_concelho, dados_concelho in lista_locais.items():
+                          if isinstance(dados_concelho, dict):
+                              rcm_val = str(dados_concelho.get('rcm', 1))
+                              cor = CORES_RISCO.get(rcm_val, "#FFFFFF")
+                              
+                              # Desenha uma barra horizontal estilizada
+                              ax.fill_between([10, 90], y_pos, y_pos - 8, color=cor, edgecolor='none')
+                              y_pos -= 10
+                              if y_pos < 50: break
+                  
                   ax.set_xlim(0, 100)
                   ax.set_ylim(0, 1000)
                   ax.axis('off')
@@ -100,7 +101,7 @@ jobs:
           else
             git commit -m "Gerar mapas de risco autónomos via API JSON (Bypass Completo)"
             
-            # Sincroniza com o histórico do servidor antes do upload
+            # Sincroniza com o histórico do servidor antes do upload para evitar rejeições
             git pull --rebase origin main
             
             # Faz o envio definitivo para o repositório
