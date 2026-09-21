@@ -56,6 +56,7 @@ def capturar_mapas_PE():
 def capturar_mapas_PIR():
     print("\n-> A transferir mapas PIR (Download Direto do Servidor IPMA)...")
     hoje = datetime.now()
+    ano_atual = hoje.year # Extrai o ano atual de forma dinâmica
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -65,12 +66,12 @@ def capturar_mapas_PIR():
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
             
-            # O link mágico! Substituí o "time=" pela data certa e o "bbox=" pelas coordenadas de Portugal inteiro
+            # URL WMS reconstruído com o ano dinâmico (ano_atual) para não quebrar no futuro
             url_wms = (
                 "https://cs2.ipma.pt/azstats/wms?"
-                "map=rcm_2026-forecast_9p1d-continental-prevstat-idw&"
+                f"map=rcm_{ano_atual}-forecast_9p1d-continental-prevstat-idw&"
                 "service=WMS&request=GetMap&"
-                "layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm_2026-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&"
+                f"layers=PT%3AIPMA%3ACDG%3ALAYER%3Arcm_{ano_atual}-forecast_9p1d-continental-prevstat-idw%3APIR%3ACONCELHOS&"
                 "styles=&format=image%2Fpng&transparent=true&version=1.1.1&"
                 f"time={data_alvo}T00%3A00%3A00Z&"
                 "width=800&height=1200&srs=EPSG%3A3857&"
@@ -79,10 +80,8 @@ def capturar_mapas_PIR():
             
             print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
             
-            # Navega direto para a imagem
             response = page.goto(url_wms, timeout=120000, wait_until="commit")
             
-            # Guarda o corpo do link (a imagem crua) num ficheiro
             if response and response.status == 200:
                 with open(nome_ficheiro, "wb") as f:
                     f.write(response.body())
