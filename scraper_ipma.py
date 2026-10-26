@@ -92,7 +92,7 @@ def capturar_mapas_PIR():
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A compilar mapas SMI (Montagem do Mapa Base + Camada WMS do IPMA)...")
+    print("\n-> A compilar mapas SMI (Montagem do Mapa Base Esri + Camada WMS do IPMA)...")
     hoje = datetime.now()
     pasta_raiz = os.getcwd()
     
@@ -107,7 +107,7 @@ def capturar_mapas_SMI():
             nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
             print(f"   A compilar {nome_ficheiro} ({data_alvo})...")
             
-            # Criamos uma página HTML virtual na hora, que junta o Mapa de Fundo da ESRI com o link WMS do IPMA
+            # Criamos uma página HTML virtual na hora, que junta o Mapa de Fundo da Esri, os dados do IPMA e as Fronteiras por cima
             html_mapa = f"""
             <!DOCTYPE html>
             <html>
@@ -121,17 +121,25 @@ def capturar_mapas_SMI():
                 <script>
                     var map = L.map('map', {{ zoomControl: false, attributionControl: false }});
                     
-                    // 1. O Mapa base por baixo (Esri World Light Gray - Grátis e limpo)
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}').addTo(map);
+                    // CAMADA 1: O Mapa base por baixo (Esri World Light Gray Base)
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+                        maxZoom: 16
+                    }}).addTo(map);
                     
-                    // 2. Os dados transparentes do SMI por cima
-                    L.tileLayer.wms('https://cs2.ipma.pt/wms?dataset=smi-forecast_10p1d-continental-ecmwf', {{
+                    // CAMADA 2: Os dados transparentes do SMI (IPMA)
+                    L.tileLayer.wms('https://cs2.ipma.pt/wms', {{
+                        dataset: 'smi-forecast_10p1d-continental-ecmwf',
                         layers: 'PT:IPMA:CDG:LAYER:smi-forecast_10p1d-continental-ecmwf_latest',
                         format: 'image/png',
                         transparent: true,
                         version: '1.1.1',
                         time: '{data_alvo}T00:00:00.000Z',
                         dim_layer: '100'
+                    }}).addTo(map);
+
+                    // CAMADA 3: Nomes e Fronteiras por Cima (Esri World Light Gray Reference)
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+                        maxZoom: 16
                     }}).addTo(map);
                     
                     // Focar as coordenadas exatas de Portugal Continental
@@ -142,11 +150,11 @@ def capturar_mapas_SMI():
             """
             
             try:
-                # Injeta a página construída no navegador e espera que as imagens de rede carreguem (5 segundos)
+                # Injeta a página construída no navegador e espera que todas as 3 camadas carreguem perfeitamente (5 segundos)
                 page.set_content(html_mapa)
                 page.wait_for_timeout(5000) 
                 
-                # Tira a fotografia à página acabada de construir
+                # Tira a fotografia ao mapa já comletamente montado
                 page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
                 print(f"   ✔️ Sucesso: {nome_ficheiro} compilado e guardado!")
                 
