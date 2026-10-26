@@ -92,76 +92,69 @@ def capturar_mapas_PIR():
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A compilar mapas SMI (Montagem do Mapa Base Esri + Camada WMS do IPMA)...")
-    hoje = datetime.now()
+    print("\n-> A iniciar captura dos mapas SMI (Página Original do IPMA)...")
     pasta_raiz = os.getcwd()
+    hoje = datetime.now()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        # Tamanho vertical tipo "retrato" para focar perfeitamente em Portugal
-        context = browser.new_context(viewport={'width': 800, 'height': 1200})
+        # Resolução ampla para garantir que o mapa carrega com máxima qualidade
+        context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
-        for d in range(3):
-            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
-            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
-            print(f"   A compilar {nome_ficheiro} ({data_alvo})...")
+        try:
+            print("   A aceder ao portal de Previsão SMI...")
+            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=60000)
+            page.wait_for_timeout(5000)
             
-            # Criamos uma página HTML virtual na hora, que junta o Mapa de Fundo da Esri, os dados do IPMA e as Fronteiras por cima
-            html_mapa = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                <style>body, html {{ margin: 0; padding: 0; width: 800px; height: 1200px; background-color: #f8f9fa; }} #map {{ width: 100%; height: 100%; }}</style>
-            </head>
-            <body>
-                <div id="map"></div>
-                <script>
-                    var map = L.map('map', {{ zoomControl: false, attributionControl: false }});
-                    
-                    // CAMADA 1: O Mapa base por baixo (Esri World Light Gray Base)
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
-                        maxZoom: 16
-                    }}).addTo(map);
-                    
-                    // CAMADA 2: Os dados transparentes do SMI (IPMA)
-                    L.tileLayer.wms('https://cs2.ipma.pt/wms', {{
-                        dataset: 'smi-forecast_10p1d-continental-ecmwf',
-                        layers: 'PT:IPMA:CDG:LAYER:smi-forecast_10p1d-continental-ecmwf_latest',
-                        format: 'image/png',
-                        transparent: true,
-                        version: '1.1.1',
-                        time: '{data_alvo}T00:00:00.000Z',
-                        dim_layer: '100'
-                    }}).addTo(map);
-
-                    // CAMADA 3: Nomes e Fronteiras por Cima (Esri World Light Gray Reference)
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
-                        maxZoom: 16
-                    }}).addTo(map);
-                    
-                    // Focar as coordenadas exatas de Portugal Continental
-                    map.fitBounds([[36.95, -9.5], [42.15, -6.2]]);
-                </script>
-            </body>
-            </html>
-            """
+            # Limpa o lixo visual para que a fotografia incida apenas no mapa limpo
+            page.evaluate("""
+                var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
+                els.forEach(el => { if(el) el.style.display = 'none'; });
+            """)
             
-            try:
-                # Injeta a página construída no navegador e espera que todas as 3 camadas carreguem perfeitamente (5 segundos)
-                page.set_content(html_mapa)
-                page.wait_for_timeout(5000) 
+            for d in range(3):
+                data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+                nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
                 
-                # Tira a fotografia ao mapa já comletamente montado
-                page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
-                print(f"   ✔️ Sucesso: {nome_ficheiro} compilado e guardado!")
+                print(f"   A processar {nome_ficheiro} ({data_alvo})...")
                 
-            except Exception as e:
-                print(f"   ❌ Falha ao compilar {nome_ficheiro}: {e}")
+                # Injeção Cirúrgica: Altera APENAS a data da camada de água do IPMA.
+                # Como usamos o mapa original da página, o fundo e as fronteiras ficam intactos!
+                page.evaluate(f"""
+                    let newTime = '{data_alvo}T00:00:00.000Z';
+                    let tiles = document.querySelectorAll('img.leaflet-tile');
+                    tiles.forEach(img => {{
+                        // Verifica se é a imagem dos dados do SMI e altera o parâmetro 'time'
+                        if (img.src.includes('smi-forecast')) {{
+                            img.src = img.src.replace(/time=[^&]+/, 'time=' + newTime);
+                        }}
+                    }});
+                """)
                 
-        browser.close()
+                # Aguardar 4 segundos para o navegador carregar os novos dados coloridos
+                page.wait_for_timeout(4000)
+                
+                # Localiza a caixa exata do mapa e tira o Screenshot
+                locators = [".leaflet-container", "#map", ".main-content img", "#content"]
+                elemento_mapa = None
+                
+                for seletor in locators:
+                    if page.locator(seletor).count() > 0:
+                        elemento_mapa = page.locator(seletor).first
+                        break
+                        
+                if elemento_mapa:
+                    elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
+                    print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
+                else:
+                    print(f"   ❌ Falha: Não foi possível detetar o contentor do mapa.")
+                    
+        except Exception as e:
+            print(f"   ❌ Erro durante o processamento do SMI: {e}")
+            
+        finally:
+            browser.close()
 
 def capturar_mapas_Bacias():
     print("\n-> A iniciar captura dos mapas de Bacias Hidrográficas...")
