@@ -92,40 +92,66 @@ def capturar_mapas_PIR():
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A transferir mapas SMI (Download Direto do Servidor IPMA WMS)...")
+    print("\n-> A compilar mapas SMI (Montagem do Mapa Base + Camada WMS do IPMA)...")
     hoje = datetime.now()
     pasta_raiz = os.getcwd()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        # Tamanho vertical tipo "retrato" para focar perfeitamente em Portugal
+        context = browser.new_context(viewport={'width': 800, 'height': 1200})
+        page = context.new_page()
         
         for d in range(3):
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
+            print(f"   A compilar {nome_ficheiro} ({data_alvo})...")
             
-            # Usando as coordenadas de Portugal inteiro (mesmas do PIR) para a imagem ficar perfeita
-            url_wms_smi = (
-                "https://cs2.ipma.pt/wms?"
-                "dataset=smi-forecast_10p1d-continental-ecmwf&"
-                "service=WMS&request=GetMap&"
-                "layers=PT%3AIPMA%3ACDG%3ALAYER%3Asmi-forecast_10p1d-continental-ecmwf_latest&"
-                "styles=&format=image%2Fpng&transparent=true&version=1.1.1&dim_layer=100&"
-                f"time={data_alvo}T00%3A00%3A00.000Z&"
-                "width=800&height=1200&srs=EPSG%3A3857&"
-                "bbox=-1252344.27,4383204.95,-626172.14,5322463.15"
-            )
+            # Criamos uma página HTML virtual na hora, que junta o Mapa de Fundo com o link WMS do IPMA
+            html_mapa = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                <style>body, html {{ margin: 0; padding: 0; width: 800px; height: 1200px; }} #map {{ width: 100%; height: 100%; }}</style>
+            </head>
+            <body>
+                <div id="map"></div>
+                <script>
+                    var map = L.map('map', {{ zoomControl: false, attributionControl: false }});
+                    
+                    // 1. O Mapa base por baixo (Limpo, estilo CartoDB)
+                    L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png').addTo(map);
+                    
+                    // 2. Os dados transparentes do SMI por cima
+                    L.tileLayer.wms('https://cs2.ipma.pt/wms?dataset=smi-forecast_10p1d-continental-ecmwf', {{
+                        layers: 'PT:IPMA:CDG:LAYER:smi-forecast_10p1d-continental-ecmwf_latest',
+                        format: 'image/png',
+                        transparent: true,
+                        version: '1.1.1',
+                        time: '{data_alvo}T00:00:00.000Z',
+                        dim_layer: '100'
+                    }}).addTo(map);
+                    
+                    // Focar as coordenadas exatas de Portugal Continental
+                    map.fitBounds([[36.95, -9.5], [42.15, -6.2]]);
+                </script>
+            </body>
+            </html>
+            """
             
-            print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
-            
-            response = page.goto(url_wms_smi, timeout=120000, wait_until="commit")
-            
-            if response and response.status == 200:
-                with open(os.path.join(pasta_raiz, nome_ficheiro), "wb") as f:
-                    f.write(response.body())
-                print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
-            else:
-                print(f"   ❌ Falha ao obter {nome_ficheiro}. O IPMA pode não ter este dia disponível.")
+            try:
+                # Injeta a página construída no navegador e espera que as imagens de rede carreguem (5 segundos)
+                page.set_content(html_mapa)
+                page.wait_for_timeout(5000) 
+                
+                # Tira a fotografia à página acabada de construir
+                page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
+                print(f"   ✔️ Sucesso: {nome_ficheiro} compilado e guardado!")
+                
+            except Exception as e:
+                print(f"   ❌ Falha ao compilar {nome_ficheiro}: {e}")
                 
         browser.close()
 
