@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 
@@ -91,7 +92,7 @@ def capturar_mapas_PIR():
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A iniciar captura dos mapas SMI (Percentagem de Água no Solo)...")
+    print("\n-> A iniciar captura dos mapas SMI (Previsão de Água no Solo)...")
     pasta_raiz = os.getcwd()
     hoje = datetime.now()
     
@@ -106,17 +107,14 @@ def capturar_mapas_SMI():
             
             print(f"   A processar {nome_ficheiro} ({data_alvo})...")
             try:
-                # O IPMA aceita frequentemente a injeção da data diretamente no URL
-                page.goto(f"https://www.ipma.pt/pt/agrometeorologia/smi/?data={data_alvo}", timeout=60000)
+                page.goto(f"https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp?data={data_alvo}", timeout=60000)
                 page.wait_for_timeout(4000)
                 
-                # Cirurgia visual para esconder os menus e cabeçalhos
                 page.evaluate("""
                     var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
                     els.forEach(el => { if(el) el.style.display = 'none'; });
                 """)
                 
-                # Procura a caixa principal onde o mapa fica alojado
                 locators = [".leaflet-container", "#map", ".main-content img", "#content"]
                 elemento_mapa = None
                 
@@ -141,9 +139,31 @@ def capturar_mapas_Bacias():
     pasta_raiz = os.getcwd()
     hoje = datetime.now()
     
+    # -------------------------------------------------------------
+    # SISTEMA DE CREDENCIAIS (Para poderes partilhar o projeto)
+    # Tenta ler do ficheiro credenciais.json, e se não encontrar,
+    # tenta usar as variáveis do GitHub Secrets ou valores fixos.
+    # -------------------------------------------------------------
+    MEU_UTILIZADOR = os.environ.get("IPMA_USER", "escreve_aqui_o_utilizador")
+    MINHA_PASSWORD = os.environ.get("IPMA_PASS", "escreve_aqui_a_password")
+    
+    caminho_creds = os.path.join(pasta_raiz, "credenciais.json")
+    if os.path.exists(caminho_creds):
+        try:
+            with open(caminho_creds, 'r') as f:
+                creds = json.load(f)
+                MEU_UTILIZADOR = creds.get('utilizador', MEU_UTILIZADOR)
+                MINHA_PASSWORD = creds.get('password', MINHA_PASSWORD)
+        except Exception:
+            pass
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1200, 'height': 1200})
+        
+        context = browser.new_context(
+            viewport={'width': 1200, 'height': 1200},
+            http_credentials={'username': MEU_UTILIZADOR, 'password': MINHA_PASSWORD}
+        )
         page = context.new_page()
         
         for d in range(3):
@@ -155,13 +175,11 @@ def capturar_mapas_Bacias():
                 page.goto(f"https://protecaocivil.ipma.pt/produtos/precipitacao-total-observada-e-prevista-por-bacia-2-a-9-dias/?data={data_alvo}", timeout=60000)
                 page.wait_for_timeout(5000)
                 
-                # Limpar interface do WordPress
                 page.evaluate("""
                     var els = document.querySelectorAll('header, footer, nav, .navbar, .site-header, .widget');
                     els.forEach(el => { if(el) el.style.display = 'none'; });
                 """)
                 
-                # Isolar a zona central de conteúdo onde se encontram os mapas/iFrames
                 locators = [".entry-content img", ".entry-content iframe", "#main-content", "article"]
                 elemento_mapa = None
                 
@@ -174,7 +192,6 @@ def capturar_mapas_Bacias():
                     elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
                 else:
-                    # Alternativa de segurança caso não encontre um elemento isolado: recorta a vista geral central
                     page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro), full_page=True)
                     print(f"   ✔️ Sucesso (Fallback Vista Geral): {nome_ficheiro} guardado.")
                     
