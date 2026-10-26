@@ -101,20 +101,67 @@ def capturar_mapas_SMI():
         context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
-        for d in range(3):
-            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
-            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
+        try:
+            # 1. Carrega a página uma única vez
+            print("   A aceder ao portal de Previsão SMI...")
+            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=60000)
+            page.wait_for_timeout(5000)
             
-            print(f"   A processar {nome_ficheiro} ({data_alvo})...")
-            try:
-                page.goto(f"https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp?data={data_alvo}", timeout=60000)
-                page.wait_for_timeout(4000)
+            # Limpa o lixo visual do IPMA
+            page.evaluate("""
+                var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
+                els.forEach(el => { if(el) el.style.display = 'none'; });
+            """)
+            
+            # 2. Percorre os 3 dias interagindo com o site
+            for d in range(3):
+                data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+                nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
                 
-                page.evaluate("""
-                    var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
-                    els.forEach(el => { if(el) el.style.display = 'none'; });
+                print(f"   A processar {nome_ficheiro} ({data_alvo})...")
+                
+                # Injeta Javascript para procurar o seletor de datas do IPMA e forçar a mudança do dia
+                page.evaluate(f"""
+                    let dataAlvo = "{data_alvo}";
+                    let changed = false;
+                    
+                    // Estratégia 1: Procurar nos Dropdowns (Selects)
+                    let selects = document.querySelectorAll("select");
+                    for(let sel of selects) {{
+                        for(let i=0; i<sel.options.length; i++) {{
+                            // Procura a data exata no valor ou no texto
+                            if(sel.options[i].value.includes(dataAlvo) || sel.options[i].text.includes(dataAlvo)) {{
+                                sel.selectedIndex = i;
+                                sel.dispatchEvent(new Event("change", {{bubbles: true}}));
+                                changed = true;
+                                break;
+                            }}
+                        }}
+                        if(changed) break;
+                        
+                        // Fallback: Se não encontrou o texto da data, muda pelo índice (0=Hoje, 1=Amanhã, 2=Depois)
+                        if(sel.options.length >= 3) {{
+                            sel.selectedIndex = {d};
+                            sel.dispatchEvent(new Event("change", {{bubbles: true}}));
+                            changed = true;
+                            break;
+                        }}
+                    }}
+                    
+                    // Estratégia 2: Se for um input de calendário (date picker)
+                    if(!changed) {{
+                        let dateInput = document.querySelector('input[type="date"]');
+                        if (dateInput) {{
+                            dateInput.value = dataAlvo;
+                            dateInput.dispatchEvent(new Event("change", {{bubbles: true}}));
+                        }}
+                    }}
                 """)
                 
+                # Esperar 3 segundos para que o IPMA carregue a nova camada do mapa após a alteração
+                page.wait_for_timeout(3000)
+                
+                # Tira o screenshot da caixa do mapa
                 locators = [".leaflet-container", "#map", ".main-content img", "#content"]
                 elemento_mapa = None
                 
@@ -127,12 +174,13 @@ def capturar_mapas_SMI():
                     elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
                 else:
-                    print(f"   ❌ Falha: Não foi possível detetar o mapa SMI para {data_alvo}.")
+                    print(f"   ❌ Falha: Não foi possível detetar o contentor do mapa.")
                     
-            except Exception as e:
-                print(f"   ❌ Erro durante o processamento do SMI: {e}")
-                
-        browser.close()
+        except Exception as e:
+            print(f"   ❌ Erro durante o processamento do SMI: {e}")
+            
+        finally:
+            browser.close()
 
 def capturar_mapas_Bacias():
     print("\n-> A iniciar captura dos mapas de Bacias Hidrográficas...")
