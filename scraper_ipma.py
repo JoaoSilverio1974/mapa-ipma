@@ -19,7 +19,9 @@ def capturar_mapas_PE():
         context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
-        page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/")
+        # 🛠️ CORREÇÃO AQUI: Timeout alargado para 2 minutos e espera segura
+        page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/", timeout=120000, wait_until="commit")
+        
         page.wait_for_selector(".leaflet-container", timeout=60000)
         page.wait_for_timeout(6000) 
         
@@ -98,16 +100,14 @@ def capturar_mapas_SMI():
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        # Resolução ampla para garantir que o mapa carrega com máxima qualidade
         context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
         try:
             print("   A aceder ao portal de Previsão SMI...")
-            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=60000)
+            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=120000, wait_until="commit")
             page.wait_for_timeout(5000)
             
-            # Limpa o lixo visual para que a fotografia incida apenas no mapa limpo
             page.evaluate("""
                 var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
                 els.forEach(el => { if(el) el.style.display = 'none'; });
@@ -119,23 +119,18 @@ def capturar_mapas_SMI():
                 
                 print(f"   A processar {nome_ficheiro} ({data_alvo})...")
                 
-                # Injeção Cirúrgica: Altera APENAS a data da camada de água do IPMA.
-                # Como usamos o mapa original da página, o fundo e as fronteiras ficam intactos!
                 page.evaluate(f"""
                     let newTime = '{data_alvo}T00:00:00.000Z';
                     let tiles = document.querySelectorAll('img.leaflet-tile');
                     tiles.forEach(img => {{
-                        // Verifica se é a imagem dos dados do SMI e altera o parâmetro 'time'
                         if (img.src.includes('smi-forecast')) {{
                             img.src = img.src.replace(/time=[^&]+/, 'time=' + newTime);
                         }}
                     }});
                 """)
                 
-                # Aguardar 4 segundos para o navegador carregar os novos dados coloridos
                 page.wait_for_timeout(4000)
                 
-                # Localiza a caixa exata do mapa e tira o Screenshot
                 locators = [".leaflet-container", "#map", ".main-content img", "#content"]
                 elemento_mapa = None
                 
@@ -189,7 +184,7 @@ def capturar_mapas_Bacias():
             
             print(f"   A processar {nome_ficheiro} ({data_alvo})...")
             try:
-                page.goto(f"https://protecaocivil.ipma.pt/produtos/precipitacao-total-observada-e-prevista-por-bacia-2-a-9-dias/?data={data_alvo}", timeout=60000)
+                page.goto(f"https://protecaocivil.ipma.pt/produtos/precipitacao-total-observada-e-prevista-por-bacia-2-a-9-dias/?data={data_alvo}", timeout=120000, wait_until="commit")
                 page.wait_for_timeout(5000)
                 
                 page.evaluate("""
