@@ -19,15 +19,14 @@ def capturar_mapas_PE():
             url_pe = f"https://api.ipma.pt/public-data/mf2_preview/lsasaf_p2000_continent/lsasaf_p2000_continent_{data_alvo}T00_00_00.png"
             
             print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
-            
             try:
                 response = page.goto(url_pe, timeout=120000, wait_until="commit")
-                if response and response.status == 200:
+                if response and response.status == 200 and "image" in response.headers.get("content-type", ""):
                     with open(os.path.join(pasta_raiz, nome_ficheiro), "wb") as f:
                         f.write(response.body())
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
                 else:
-                    print(f"   ❌ Falha ao obter {nome_ficheiro}.")
+                    print(f"   ❌ Falha ao obter {nome_ficheiro} (Content-Type inválido ou dia indisponível).")
             except Exception as e:
                 print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
                 
@@ -37,6 +36,7 @@ def capturar_mapas_PIR():
     print("\n-> A transferir mapas PIR (Download Direto do Servidor IPMA)...")
     hoje = datetime.now()
     ano_atual = hoje.year
+    pasta_raiz = os.getcwd()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -58,45 +58,9 @@ def capturar_mapas_PIR():
             )
             
             print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
-            response = page.goto(url_wms, timeout=120000, wait_until="commit")
-            
-            if response and response.status == 200:
-                with open(nome_ficheiro, "wb") as f:
-                    f.write(response.body())
-                print(f"   Sucesso: {nome_ficheiro} guardado!")
-            else:
-                print(f"   Falha ao obter {nome_ficheiro}.")
-                
-        browser.close()
-
-def capturar_mapas_SMI():
-    print("\n-> A compilar mapas SMI (Montagem Direta via WMS do IPMA)...")
-    hoje = datetime.now()
-    pasta_raiz = os.getcwd()
-    
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        
-        for d in range(3):
-            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
-            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
-            
-            url_wms_smi = (
-                "https://cs2.ipma.pt/wms?"
-                "dataset=smi-forecast_10p1d-continental-ecmwf&"
-                "service=WMS&request=GetMap&"
-                "layers=PT%3AIPMA%3ACDG%3ALAYER%3Asmi-forecast_10p1d-continental-ecmwf_latest%3ACONCELHOS&"
-                "styles=&format=image%2Fpng&transparent=true&version=1.1.1&"
-                f"time={data_alvo}T00%3A00%3A00.000Z&"
-                "width=800&height=1200&srs=EPSG%3A3857&"
-                "bbox=-1252344.27,4383204.95,-626172.14,5322463.15"
-            )
-            
-            print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
             try:
-                response = page.goto(url_wms_smi, timeout=120000, wait_until="commit")
-                if response and response.status == 200:
+                response = page.goto(url_wms, timeout=120000, wait_until="commit")
+                if response and response.status == 200 and "image" in response.headers.get("content-type", ""):
                     with open(os.path.join(pasta_raiz, nome_ficheiro), "wb") as f:
                         f.write(response.body())
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
@@ -104,6 +68,92 @@ def capturar_mapas_SMI():
                     print(f"   ❌ Falha ao obter {nome_ficheiro}.")
             except Exception as e:
                 print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
+                
+        browser.close()
+
+def capturar_mapas_SMI():
+    print("\n-> A compilar mapas SMI (Fundo Esri + Dados WMS IPMA + Limites Concelhos)...")
+    hoje = datetime.now()
+    pasta_raiz = os.getcwd()
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={'width': 800, 'height': 1200})
+        page = context.new_page()
+        
+        for d in range(3):
+            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
+            print(f"   A compilar {nome_ficheiro} ({data_alvo})...")
+            
+            html_mapa = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                <style>
+                    body, html {{ margin: 0; padding: 0; width: 800px; height: 1200px; background-color: #d0cfd4; }}
+                    #map {{ width: 100%; height: 100%; }}
+                </style>
+            </head>
+            <body>
+                <div id="map"></div>
+                <script>
+                    var map = L.map('map', {{ zoomControl: false, attributionControl: false }});
+                    
+                    // 1. Fundo Base Esri (Cinzento limpo sem cidades)
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+                        maxZoom: 16
+                    }}).addTo(map);
+                    
+                    // 2. Camada WMS oficial do SMI do IPMA
+                    L.tileLayer.wms('https://cs2.ipma.pt/wms?dataset=smi-forecast_10p1d-continental-ecmwf', {{
+                        layers: 'PT:IPMA:CDG:LAYER:smi-forecast_10p1d-continental-ecmwf_latest',
+                        format: 'image/png',
+                        transparent: true,
+                        version: '1.1.1',
+                        time: '{data_alvo}T00:00:00.000Z',
+                        dim_layer: '100'
+                    }}).addTo(map);
+
+                    // 3. Limites dos Concelhos de Portugal Continental por cima
+                    fetch('https://raw.githubusercontent.com/dssg-pt/dados-Portugal/master/concelhos.geojson')
+                        .then(r => r.json())
+                        .then(data => {{
+                            L.geoJSON(data, {{
+                                style: {{
+                                    color: '#111111',
+                                    weight: 1.1,
+                                    opacity: 0.85,
+                                    fillOpacity: 0
+                                }}
+                            }}).addTo(map);
+                            window.concelhosCarregados = true;
+                        }})
+                        .catch(err => {{
+                            console.error(err);
+                            window.concelhosCarregados = true;
+                        }});
+                    
+                    // Enquadramento exato de Portugal Continental
+                    map.fitBounds([[36.90, -9.55], [42.20, -6.15]]);
+                </script>
+            </body>
+            </html>
+            """
+            
+            try:
+                page.set_content(html_mapa, wait_until="networkidle", timeout=60000)
+                # Garante que o GeoJSON dos concelhos e os tiles WMS terminaram de renderizar
+                page.wait_for_function("window.concelhosCarregados === true", timeout=30000)
+                page.wait_for_timeout(3000)
+                
+                page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
+                print(f"   ✔️ Sucesso: {nome_ficheiro} compilado e guardado!")
+            except Exception as e:
+                print(f"   ❌ Falha ao compilar {nome_ficheiro}: {e}")
                 
         browser.close()
 
