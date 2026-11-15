@@ -4,60 +4,34 @@ from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 
 def capturar_mapas_PE():
-    print("-> A iniciar captura dos mapas PE (Fronteiras)...")
-    pasta_raiz = os.getcwd()
+    print("-> A transferir mapas PE (Download Direto da API IPMA)...")
     hoje = datetime.now()
-    
-    fmt_hoje = hoje.strftime("%Y-%m-%d")
-    fmt_amanha = (hoje + timedelta(days=1)).strftime("%Y-%m-%d")
-    fmt_depois = (hoje + timedelta(days=2)).strftime("%Y-%m-%d")
-    
-    url_base = "https://api.ipma.pt/public-data/mf2_preview/lsasaf_p2000_continent/lsasaf_p2000_continent_{}T00_00_00.png"
+    pasta_raiz = os.getcwd()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1200, 'height': 1200})
-        page = context.new_page()
+        page = browser.new_page()
         
-        # Ligação verificada ao portal de risco de incêndio do IPMA
-        try:
-            page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/", timeout=120000, wait_until="commit")
-            page.wait_for_selector(".leaflet-container", timeout=60000)
-            page.wait_for_timeout(6000) 
-        except Exception as e:
-            print(f"   ⚠️ Aviso na navegação principal PE, a tentar rota alternativa: {e}")
-            page.goto("https://www.ipma.pt/pt/riscoincendio/", timeout=120000, wait_until="commit")
-            page.wait_for_timeout(6000)
-        
-        page.evaluate("""
-            var els = document.querySelectorAll('header, footer, nav, [id*=cookie], .leaflet-control-container');
-            els.forEach(el => { if(el) el.style.display = 'none'; });
-        """)
-        
-        mapa = page.locator(".leaflet-container").first
-        js_mudar_imagem = """(novaUrl) => {
-            var imagens = document.querySelectorAll('img[src*="lsasaf_p2000"]');
-            imagens.forEach(img => img.src = novaUrl);
-        }"""
-        
-        # HOJE PE
-        page.evaluate(js_mudar_imagem, url_base.format(fmt_hoje))
-        page.wait_for_timeout(3000)
-        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_hoje_PE.png"))
-        print(f"   Sucesso: portugal_hoje_PE.png")
-        
-        # AMANHA PE
-        page.evaluate(js_mudar_imagem, url_base.format(fmt_amanha))
-        page.wait_for_timeout(3000)
-        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_amanha_PE.png"))
-        print(f"   Sucesso: portugal_amanha_PE.png")
-        
-        # DEPOIS PE
-        page.evaluate(js_mudar_imagem, url_base.format(fmt_depois))
-        page.wait_for_timeout(3000)
-        mapa.screenshot(path=os.path.join(pasta_raiz, "portugal_depois_PE.png"))
-        print(f"   Sucesso: portugal_depois_PE.png")
-        
+        for d in range(3):
+            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+            nome_ficheiro = "portugal_hoje_PE.png" if d == 0 else "portugal_amanha_PE.png" if d == 1 else "portugal_depois_PE.png"
+            
+            # URL direto oficial da imagem de pré-visualização FWI do IPMA
+            url_pe = f"https://api.ipma.pt/public-data/mf2_preview/lsasaf_p2000_continent/lsasaf_p2000_continent_{data_alvo}T00_00_00.png"
+            
+            print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
+            
+            try:
+                response = page.goto(url_pe, timeout=120000, wait_until="commit")
+                if response and response.status == 200:
+                    with open(os.path.join(pasta_raiz, nome_ficheiro), "wb") as f:
+                        f.write(response.body())
+                    print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
+                else:
+                    print(f"   ❌ Falha ao obter {nome_ficheiro}. O servidor respondeu com estado {response.status if response else 'desconhecido'}.")
+            except Exception as e:
+                print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
+                
         browser.close()
 
 def capturar_mapas_PIR():
@@ -73,7 +47,6 @@ def capturar_mapas_PIR():
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
             
-            # Ligação WMS verificada para o servidor do IPMA
             url_wms = (
                 "https://cs2.ipma.pt/azstats/wms?"
                 f"map=rcm_{ano_atual}-forecast_9p1d-continental-prevstat-idw&"
@@ -110,7 +83,6 @@ def capturar_mapas_SMI():
         
         try:
             print("   A aceder ao portal de Previsão SMI...")
-            # Ligação oficial verificada da agrometeorologia do IPMA
             page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=120000, wait_until="commit")
             page.wait_for_timeout(5000)
             
@@ -190,7 +162,6 @@ def capturar_mapas_Bacias():
             
             print(f"   A processar {nome_ficheiro} ({data_alvo})...")
             try:
-                # Ligação protegida verificada da Proteção Civil / IPMA
                 page.goto(f"https://protecaocivil.ipma.pt/produtos/precipitacao-total-observada-e-prevista-por-bacia-2-a-9-dias/?data={data_alvo}", timeout=120000, wait_until="commit")
                 page.wait_for_timeout(5000)
                 
