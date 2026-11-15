@@ -16,7 +16,6 @@ def capturar_mapas_PE():
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "portugal_hoje_PE.png" if d == 0 else "portugal_amanha_PE.png" if d == 1 else "portugal_depois_PE.png"
             
-            # URL direto oficial da imagem de pré-visualização FWI do IPMA
             url_pe = f"https://api.ipma.pt/public-data/mf2_preview/lsasaf_p2000_continent/lsasaf_p2000_continent_{data_alvo}T00_00_00.png"
             
             print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
@@ -28,7 +27,7 @@ def capturar_mapas_PE():
                         f.write(response.body())
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
                 else:
-                    print(f"   ❌ Falha ao obter {nome_ficheiro}. O servidor respondeu com estado {response.status if response else 'desconhecido'}.")
+                    print(f"   ❌ Falha ao obter {nome_ficheiro}.")
             except Exception as e:
                 print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
                 
@@ -59,7 +58,6 @@ def capturar_mapas_PIR():
             )
             
             print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
-            
             response = page.goto(url_wms, timeout=120000, wait_until="commit")
             
             if response and response.status == 200:
@@ -67,67 +65,48 @@ def capturar_mapas_PIR():
                     f.write(response.body())
                 print(f"   Sucesso: {nome_ficheiro} guardado!")
             else:
-                print(f"   Falha ao obter {nome_ficheiro}. O IPMA pode não ter este dia disponível.")
+                print(f"   Falha ao obter {nome_ficheiro}.")
                 
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A iniciar captura dos mapas SMI (Página Original do IPMA)...")
-    pasta_raiz = os.getcwd()
+    print("\n-> A compilar mapas SMI (Montagem Direta via WMS do IPMA)...")
     hoje = datetime.now()
+    pasta_raiz = os.getcwd()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1200, 'height': 1200})
-        page = context.new_page()
+        page = browser.new_page()
         
-        try:
-            print("   A aceder ao portal de Previsão SMI...")
-            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=120000, wait_until="commit")
-            page.wait_for_timeout(5000)
+        for d in range(3):
+            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
             
-            page.evaluate("""
-                var els = document.querySelectorAll('header, footer, nav, [id*=cookie], #nav-left, .breadcrumb, .leaflet-control-container');
-                els.forEach(el => { if(el) el.style.display = 'none'; });
-            """)
+            # URL WMS oficial do SMI do IPMA para o território continental com as fronteiras de concelhos
+            url_wms_smi = (
+                "https://cs2.ipma.pt/wms?"
+                "dataset=smi-forecast_10p1d-continental-ecmwf&"
+                "service=WMS&request=GetMap&"
+                "layers=PT%3AIPMA%3ACDG%3ALAYER%3Asmi-forecast_10p1d-continental-ecmwf_latest%3ACONCELHOS&"
+                "styles=&format=image%2Fpng&transparent=true&version=1.1.1&"
+                f"time={data_alvo}T00%3A00%3A00.000Z&"
+                "width=800&height=1200&srs=EPSG%3A3857&"
+                "bbox=-1252344.27,4383204.95,-626172.14,5322463.15"
+            )
             
-            for d in range(3):
-                data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
-                nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
-                
-                print(f"   A processar {nome_ficheiro} ({data_alvo})...")
-                
-                page.evaluate(f"""
-                    let newTime = '{data_alvo}T00:00:00.000Z';
-                    let tiles = document.querySelectorAll('img.leaflet-tile');
-                    tiles.forEach(img => {{
-                        if (img.src.includes('smi-forecast')) {{
-                            img.src = img.src.replace(/time=[^&]+/, 'time=' + newTime);
-                        }}
-                    }});
-                """)
-                
-                page.wait_for_timeout(4000)
-                
-                locators = [".leaflet-container", "#map", ".main-content img", "#content"]
-                elemento_mapa = None
-                
-                for seletor in locators:
-                    if page.locator(seletor).count() > 0:
-                        elemento_mapa = page.locator(seletor).first
-                        break
-                        
-                if elemento_mapa:
-                    elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
-                    print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
+            print(f"   A transferir {nome_ficheiro} ({data_alvo})...")
+            try:
+                response = page.goto(url_wms_smi, timeout=120000, wait_until="commit")
+                if response and response.status == 200:
+                    with open(os.path.join(pasta_raiz, nome_ficheiro), "wb") as f:
+                        f.write(response.body())
+                    print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
                 else:
-                    print(f"   ❌ Falha: Não foi possível detetar o contentor do mapa.")
-                    
-        except Exception as e:
-            print(f"   ❌ Erro durante o processamento do SMI: {e}")
-            
-        finally:
-            browser.close()
+                    print(f"   ❌ Falha ao obter {nome_ficheiro}.")
+            except Exception as e:
+                print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
+                
+        browser.close()
 
 def capturar_mapas_Bacias():
     print("\n-> A iniciar captura dos mapas de Bacias Hidrográficas...")
@@ -182,16 +161,4 @@ def capturar_mapas_Bacias():
                     elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
                 else:
-                    page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro), full_page=True)
-                    print(f"   ✔️ Sucesso (Fallback Vista Geral): {nome_ficheiro} guardado.")
-                    
-            except Exception as e:
-                print(f"   ❌ Erro ao capturar mapa das Bacias: {e}")
-                
-        browser.close()
-
-if __name__ == "__main__":
-    capturar_mapas_PE()
-    capturar_mapas_PIR()
-    capturar_mapas_SMI()
-    capturar_mapas_Bacias()
+                    page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro), full_page=True
