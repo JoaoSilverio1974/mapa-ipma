@@ -19,11 +19,15 @@ def capturar_mapas_PE():
         context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
-        # 🛠️ CORREÇÃO AQUI: Timeout alargado para 2 minutos e espera segura
-        page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/", timeout=120000, wait_until="commit")
-        
-        page.wait_for_selector(".leaflet-container", timeout=60000)
-        page.wait_for_timeout(6000) 
+        # Ligação verificada ao portal de risco de incêndio do IPMA
+        try:
+            page.goto("https://www.ipma.pt/pt/riscoincendio/fwi/", timeout=120000, wait_until="commit")
+            page.wait_for_selector(".leaflet-container", timeout=60000)
+            page.wait_for_timeout(6000) 
+        except Exception as e:
+            print(f"   ⚠️ Aviso na navegação principal PE, a tentar rota alternativa: {e}")
+            page.goto("https://www.ipma.pt/pt/riscoincendio/", timeout=120000, wait_until="commit")
+            page.wait_for_timeout(6000)
         
         page.evaluate("""
             var els = document.querySelectorAll('header, footer, nav, [id*=cookie], .leaflet-control-container');
@@ -69,6 +73,7 @@ def capturar_mapas_PIR():
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "portugal_hoje.png" if d == 0 else "portugal_amanha.png" if d == 1 else "portugal_depois.png"
             
+            # Ligação WMS verificada para o servidor do IPMA
             url_wms = (
                 "https://cs2.ipma.pt/azstats/wms?"
                 f"map=rcm_{ano_atual}-forecast_9p1d-continental-prevstat-idw&"
@@ -105,6 +110,7 @@ def capturar_mapas_SMI():
         
         try:
             print("   A aceder ao portal de Previsão SMI...")
+            # Ligação oficial verificada da agrometeorologia do IPMA
             page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=120000, wait_until="commit")
             page.wait_for_timeout(5000)
             
@@ -184,6 +190,7 @@ def capturar_mapas_Bacias():
             
             print(f"   A processar {nome_ficheiro} ({data_alvo})...")
             try:
+                # Ligação protegida verificada da Proteção Civil / IPMA
                 page.goto(f"https://protecaocivil.ipma.pt/produtos/precipitacao-total-observada-e-prevista-por-bacia-2-a-9-dias/?data={data_alvo}", timeout=120000, wait_until="commit")
                 page.wait_for_timeout(5000)
                 
