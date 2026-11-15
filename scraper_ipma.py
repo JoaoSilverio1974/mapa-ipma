@@ -26,7 +26,7 @@ def capturar_mapas_PE():
                         f.write(response.body())
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
                 else:
-                    print(f"   ❌ Falha ao obter {nome_ficheiro} (Content-Type inválido ou dia indisponível).")
+                    print(f"   ❌ Falha ao obter {nome_ficheiro}.")
             except Exception as e:
                 print(f"   ❌ Erro ao transferir {nome_ficheiro}: {e}")
                 
@@ -72,90 +72,67 @@ def capturar_mapas_PIR():
         browser.close()
 
 def capturar_mapas_SMI():
-    print("\n-> A compilar mapas SMI (Fundo Esri + Dados WMS IPMA + Limites Concelhos)...")
-    hoje = datetime.now()
+    print("\n-> A iniciar captura dos mapas SMI (Via Iframe Oficial do IPMA)...")
     pasta_raiz = os.getcwd()
+    hoje = datetime.now()
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 800, 'height': 1200})
+        context = browser.new_context(viewport={'width': 1200, 'height': 1200})
         page = context.new_page()
         
-        for d in range(3):
-            data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
-            nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
-            print(f"   A compilar {nome_ficheiro} ({data_alvo})...")
+        try:
+            print("   A aceder ao portal de Previsão SMI...")
+            page.goto("https://www.ipma.pt/pt/agrometeorologia/smi/prev-smi.jsp", timeout=120000, wait_until="domcontentloaded")
+            page.wait_for_timeout(6000)
             
-            html_mapa = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8" />
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                <style>
-                    body, html {{ margin: 0; padding: 0; width: 800px; height: 1200px; background-color: #d0cfd4; }}
-                    #map {{ width: 100%; height: 100%; }}
-                </style>
-            </head>
-            <body>
-                <div id="map"></div>
-                <script>
-                    var map = L.map('map', {{ zoomControl: false, attributionControl: false }});
-                    
-                    // 1. Fundo Base Esri (Cinzento limpo sem cidades)
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
-                        maxZoom: 16
-                    }}).addTo(map);
-                    
-                    // 2. Camada WMS oficial do SMI do IPMA
-                    L.tileLayer.wms('https://cs2.ipma.pt/wms?dataset=smi-forecast_10p1d-continental-ecmwf', {{
-                        layers: 'PT:IPMA:CDG:LAYER:smi-forecast_10p1d-continental-ecmwf_latest',
-                        format: 'image/png',
-                        transparent: true,
-                        version: '1.1.1',
-                        time: '{data_alvo}T00:00:00.000Z',
-                        dim_layer: '100'
-                    }}).addTo(map);
-
-                    // 3. Limites dos Concelhos de Portugal Continental por cima
-                    fetch('https://raw.githubusercontent.com/dssg-pt/dados-Portugal/master/concelhos.geojson')
-                        .then(r => r.json())
-                        .then(data => {{
-                            L.geoJSON(data, {{
-                                style: {{
-                                    color: '#111111',
-                                    weight: 1.1,
-                                    opacity: 0.85,
-                                    fillOpacity: 0
-                                }}
-                            }}).addTo(map);
-                            window.concelhosCarregados = true;
-                        }})
-                        .catch(err => {{
-                            console.error(err);
-                            window.concelhosCarregados = true;
+            # O mapa interativo do SMI corre dentro de um iframe na página
+            iframe_locator = page.locator("iframe").first
+            if iframe_locator.count() > 0:
+                src_iframe = iframe_locator.get_attribute("src")
+                if src_iframe:
+                    if src_iframe.startswith("/"):
+                        src_iframe = "https://www.ipma.pt" + src_iframe
+                    print(f"   A abrir diretamente o visualizador do mapa: {src_iframe}")
+                    page.goto(src_iframe, timeout=120000, wait_until="domcontentloaded")
+                    page.wait_for_timeout(5000)
+            
+            # Esconde controlos de zoom, barras de tempo e legendas sobrepostas
+            page.evaluate("""
+                var els = document.querySelectorAll('.leaflet-control-container, .ol-overlaycontainer-stopevent, header, footer, nav');
+                els.forEach(el => { if(el) el.style.display = 'none'; });
+            """)
+            
+            for d in range(3):
+                data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
+                nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
+                print(f"   A processar {nome_ficheiro} ({data_alvo})...")
+                
+                if d > 0:
+                    # Atualiza o parâmetro time nas imagens WMS carregadas no visualizador
+                    page.evaluate(f"""
+                        let newTime = '{data_alvo}T00:00:00.000Z';
+                        document.querySelectorAll('img').forEach(img => {{
+                            if (img.src && img.src.includes('smi-forecast') && img.src.includes('time=')) {{
+                                img.src = img.src.replace(/time=[^&]+/, 'time=' + encodeURIComponent(newTime));
+                            }}
                         }});
+                    """)
+                    page.wait_for_timeout(4000)
+                
+                # Captura o contentor do mapa (Leaflet ou OpenLayers)
+                mapa = page.locator(".leaflet-container, .ol-viewport, #map").first
+                if mapa.count() > 0:
+                    mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
+                    print(f"   ✔️ Sucesso: {nome_ficheiro} guardado!")
+                else:
+                    page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
+                    print(f"   ✔️ Sucesso (Página completa): {nome_ficheiro} guardado!")
                     
-                    // Enquadramento exato de Portugal Continental
-                    map.fitBounds([[36.90, -9.55], [42.20, -6.15]]);
-                </script>
-            </body>
-            </html>
-            """
-            
-            try:
-                page.set_content(html_mapa, wait_until="networkidle", timeout=60000)
-                # Garante que o GeoJSON dos concelhos e os tiles WMS terminaram de renderizar
-                page.wait_for_function("window.concelhosCarregados === true", timeout=30000)
-                page.wait_for_timeout(3000)
-                
-                page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
-                print(f"   ✔️ Sucesso: {nome_ficheiro} compilado e guardado!")
-            except Exception as e:
-                print(f"   ❌ Falha ao compilar {nome_ficheiro}: {e}")
-                
-        browser.close()
+        except Exception as e:
+            print(f"   ❌ Erro durante o processamento do SMI: {e}")
+        finally:
+            browser.close()
 
 def capturar_mapas_Bacias():
     print("\n-> A iniciar captura dos mapas de Bacias Hidrográficas...")
