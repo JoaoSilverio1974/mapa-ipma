@@ -82,7 +82,6 @@ def capturar_mapas_SMI():
             data_alvo = (hoje + timedelta(days=d)).strftime("%Y-%m-%d")
             nome_ficheiro = "smi_hoje.png" if d == 0 else "smi_amanha.png" if d == 1 else "smi_depois.png"
             
-            # URL WMS oficial do SMI do IPMA para o território continental com as fronteiras de concelhos
             url_wms_smi = (
                 "https://cs2.ipma.pt/wms?"
                 "dataset=smi-forecast_10p1d-continental-ecmwf&"
@@ -161,4 +160,16 @@ def capturar_mapas_Bacias():
                     elemento_mapa.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro))
                     print(f"   ✔️ Sucesso: {nome_ficheiro} guardado.")
                 else:
-                    page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro), full_page=True
+                    page.screenshot(path=os.path.join(pasta_raiz, nome_ficheiro), full_page=True)
+                    print(f"   ✔️ Sucesso (Fallback Vista Geral): {nome_ficheiro} guardado.")
+                    
+            except Exception as e:
+                print(f"   ❌ Erro ao capturar mapa das Bacias: {e}")
+                
+        browser.close()
+
+if __name__ == "__main__":
+    capturar_mapas_PE()
+    capturar_mapas_PIR()
+    capturar_mapas_SMI()
+    capturar_mapas_Bacias()
